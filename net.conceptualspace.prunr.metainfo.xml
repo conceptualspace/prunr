@@ -54,7 +54,7 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-    <release version="1.2.4" date="2026-04-09">
+    <release version="1.2.6" date="2026-04-09">
       <description>
         <p>Flatpak release.</p>
       </description>
