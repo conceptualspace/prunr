@@ -48,7 +48,7 @@ modules:
       # Install desktop file
       - install -Dm644 net.conceptualspace.prunr.desktop /app/share/applications/net.conceptualspace.prunr.desktop
       # Install icon
-      - install -Dm644 assets/icons/icon.png /app/share/icons/hicolor/512x512/apps/net.conceptualspace.prunr.png
+      - install -Dm644 assets/icons/icon-512-alpha.png /app/share/icons/hicolor/512x512/apps/net.conceptualspace.prunr.png
     subdir: main
     sources:
       - type: archive
