@@ -1,0 +1,42 @@
+appId: net.conceptualspace.prunr
+productName: prunr
+
+directories:
+  output: out
+
+asar: true
+asarUnpack:
+  - "**/*.node"
+  - "**/better-sqlite3/**"
+
+files:
+  - dist/**/*
+  - package.json
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+  - node_modules/electron-squirrel-startup/**/*
+  - node_modules/electron-store/**/*
+
+mac:
+  icon: assets/icons/icon.icns
+  target:
+    - dmg
+    - zip
+
+win:
+  icon: assets/icons/icon.ico
+  target:
+    - squirrel
+
+squirrelWindows:
+  iconUrl: https://prunr.conceptualspace.net/icon.ico
+
+linux:
+  icon: assets/icons/icon.png
+  target:
+    - deb
+    - rpm
+  category: Utility
+
+afterPack: ./scripts/afterPack.js

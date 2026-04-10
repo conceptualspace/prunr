@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Prunr
+Comment=Find and remove duplicate files
+Exec=run.sh %U
+Icon=net.conceptualspace.prunr
+Terminal=false
+Type=Application
+Categories=Utility;FileTools;
+StartupWMClass=prunr
