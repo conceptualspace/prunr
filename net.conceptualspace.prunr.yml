@@ -53,7 +53,7 @@ modules:
     sources:
       - type: archive
         url: https://github.com/conceptualspace/prunr/archive/refs/tags/v1.2.4.tar.gz
-        sha256: <hash from step 2>
+        sha256: 853a392ec6f3e0821835e28b32ce8f84bffda4a46af84053f34ecde780cff5d3
         dest: main
       - generated-sources.json
       - type: script
