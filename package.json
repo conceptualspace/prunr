@@ -2,7 +2,7 @@
   "name": "prunr",
   "productName": "prunr",
   "desktopName": "net.conceptualspace.prunr.desktop",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "duplicate file finder",
   "main": "dist/main/main.js",
   "private": true,
