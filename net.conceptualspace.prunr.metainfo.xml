@@ -47,8 +47,8 @@
   </developer>
 
   <branding>
-    <color type="primary" scheme_preference="light">#e0f0ff</color>
-    <color type="primary" scheme_preference="dark">#242424</color>
+    <color type="primary" scheme_preference="light">#bbdcfc</color>
+    <color type="primary" scheme_preference="dark">#343531</color>
   </branding>
 
   <content_rating type="oars-1.1" />
@@ -62,15 +62,15 @@
   </releases>
 
   <screenshots>
-    <screenshot type="default">
+    <screenshot type="default" xml:lang="en">
       <image>https://prunr.conceptualspace.net/assets/screenshot1.png</image>
       <caption>Scan results showing duplicate file groups</caption>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <image>https://prunr.conceptualspace.net/assets/screenshot2.png</image>
       <caption>Treemap visualization of disk usage</caption>
     </screenshot>
-    <screenshot>
+    <screenshot xml:lang="en">
       <image>https://prunr.conceptualspace.net/assets/screenshot3.png</image>
       <caption>Radial visualization of disk usage</caption>
     </screenshot>
