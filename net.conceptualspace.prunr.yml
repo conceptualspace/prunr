@@ -15,6 +15,7 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --env=ELECTRON_TRASH=gio
+  - --filesystem=host
 
 build-options:
   append-path: /usr/lib/sdk/node24/bin
