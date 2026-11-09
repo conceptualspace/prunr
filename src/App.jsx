@@ -1173,7 +1173,7 @@ export default function App() {
           {/* Transitioning content area */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
             {/* Disk Usage view - enters from left */}
-            <div style={{
+            <div inert={view !== 'treemap'} aria-hidden={view !== 'treemap'} style={{
               position: 'absolute',
               inset: 0,
               display: 'flex',
@@ -1187,7 +1187,7 @@ export default function App() {
             </div>
 
             {/* Duplicates view - enters from right */}
-            <div style={{
+            <div inert={view !== 'scanner'} aria-hidden={view !== 'scanner'} style={{
               position: 'absolute',
               inset: 0,
               display: 'flex',

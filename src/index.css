@@ -27,6 +27,123 @@ html, body, #root {
   background-color: var(--mantine-color-dark-5);
 }
 
+.disk-usage-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.disk-usage-list-grid {
+  display: grid;
+  grid-template-columns: minmax(255px, 1fr) 110px 145px 130px;
+  align-items: center;
+  min-width: 640px;
+}
+
+.disk-usage-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 36px;
+  background-color: var(--mantine-color-dark-7);
+  color: var(--mantine-color-dimmed);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.disk-usage-list-sort {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+}
+
+.disk-usage-list-header > :first-child .disk-usage-list-sort {
+  justify-content: flex-start;
+}
+
+.disk-usage-list-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.disk-usage-list-row:focus-visible {
+  outline: 1px solid var(--mantine-primary-color-filled);
+  outline-offset: -1px;
+}
+
+.disk-usage-list-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  padding-right: 8px;
+}
+
+.disk-usage-list-name > svg,
+.disk-usage-list-name > button {
+  flex-shrink: 0;
+}
+
+.disk-usage-list-filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
+
+.disk-usage-list-number {
+  padding: 0 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.disk-usage-list-share {
+  position: relative;
+  width: 64px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background-color: var(--mantine-color-dark-4);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
+.disk-usage-list-share > :first-child {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background-color: var(--mantine-primary-color-filled);
+}
+
+.disk-usage-list-share > :last-child {
+  position: relative;
+  display: block;
+  padding: 0 4px;
+}
+
+.disk-usage-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.disk-usage-context-item:hover,
+.disk-usage-context-item:focus-visible {
+  background-color: var(--mantine-color-dark-5);
+}
+
 ::-webkit-scrollbar {
   width: 16px;
 }

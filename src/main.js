@@ -203,7 +203,7 @@ async function walkDirectoryTree(rootDir, signal, onProgress) {
             lastProgressTime = now;
             onProgress({ fileCount, currentFile: fullPath });
           }
-          return { name: entry.name, path: fullPath, size: stat.size };
+          return { name: entry.name, path: fullPath, size: stat.size, fileCount: 1, itemCount: 0 };
         } catch {
           return null;
         }
@@ -221,12 +221,14 @@ async function walkDirectoryTree(rootDir, signal, onProgress) {
       name: path.basename(dir),
       path: dir,
       size: dirSize,
+      fileCount: children.reduce((total, child) => total + child.fileCount, 0),
+      itemCount: children.reduce((total, child) => total + 1 + child.itemCount, 0),
       children,
     };
   }
 
   const tree = await walk(rootDir);
-  return tree || { name: path.basename(rootDir), path: rootDir, size: 0, children: [] };
+  return tree || { name: path.basename(rootDir), path: rootDir, size: 0, fileCount: 0, itemCount: 0, children: [] };
 }
 
 ipcMain.handle('read-file-preview', async (_event, filePath) => {

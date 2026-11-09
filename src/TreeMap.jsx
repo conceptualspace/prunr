@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   Stack,
   Text,
@@ -12,6 +13,7 @@ import {
   Tooltip,
   ActionIcon,
   SegmentedControl,
+  UnstyledButton,
 } from '@mantine/core';
 import {
   IconFolderPlus,
@@ -22,6 +24,11 @@ import {
   IconExternalLink,
   IconTrash,
   IconInfoCircle,
+  IconListTree,
+  IconChevronRight,
+  IconChevronDown,
+  IconChevronUp,
+  IconFile,
 } from '@tabler/icons-react';
 
 function formatSize(bytes) {
@@ -784,6 +791,294 @@ function SunburstView({ tree, onNavigate, onDelete }) {
   );
 }
 
+function removeDiskUsageNode(node, deletedPath) {
+  if (!node.children) return node;
+  for (const child of node.children) {
+    const removed = child.path === deletedPath;
+    const updatedChild = removed ? null : removeDiskUsageNode(child, deletedPath);
+    if (!removed && updatedChild === child) continue;
+    return {
+      ...node,
+      size: node.size - child.size + (updatedChild?.size || 0),
+      fileCount: node.fileCount - child.fileCount + (updatedChild?.fileCount || 0),
+      itemCount: node.itemCount - child.itemCount + (updatedChild?.itemCount || 0) - (removed ? 1 : 0),
+      children: removed
+        ? node.children.filter((entry) => entry !== child)
+        : node.children.map((entry) => entry === child ? updatedChild : entry),
+    };
+  }
+  return node;
+}
+
+function DiskUsageList({ tree, active, onNavigate, onDelete }) {
+  const [expanded, setExpanded] = useState(() => new Set([tree.path]));
+  const [selectedPath, setSelectedPath] = useState(tree.path);
+  const [sort, setSort] = useState({ field: 'size', direction: 'desc' });
+  const [contextMenu, setContextMenu] = useState(null);
+  const contextMenuRef = useRef(null);
+  const parentRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!contextMenu || !contextMenuRef.current) return;
+    const menu = contextMenuRef.current;
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(4, Math.min(contextMenu.x, window.innerWidth - bounds.width - 4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(contextMenu.y, window.innerHeight - bounds.height - 4))}px`;
+    menu.querySelector('button')?.focus();
+  }, [contextMenu]);
+
+  useEffect(() => {
+    setContextMenu(null);
+  }, [active, tree]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') setContextMenu(null);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [contextMenu]);
+
+  const rows = useMemo(() => {
+    const result = [];
+    const value = (node) => {
+      if (sort.field === 'name') return node.name;
+      if (sort.field === 'contents') return node.children ? node.itemCount : 1;
+      if (sort.field === 'ratio') return node.fileCount > 0 ? node.size / node.fileCount : 0;
+      return node.size;
+    };
+    const visit = (node, depth, parentPath) => {
+      result.push({ node, depth, parentPath });
+      if (!node.children || !expanded.has(node.path)) return;
+      const children = [...node.children].sort((first, second) => {
+        const comparison = sort.field === 'name'
+          ? first.name.localeCompare(second.name, undefined, { numeric: true })
+          : value(first) - value(second);
+        return (sort.direction === 'asc' ? comparison : -comparison) || first.name.localeCompare(second.name);
+      });
+      children.forEach((child) => visit(child, depth + 1, node.path));
+    };
+    visit(tree, 0, null);
+    return result;
+  }, [tree, expanded, sort]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => parentRef.current,
+    getItemKey: (index) => rows[index].node.path,
+    estimateSize: () => 36,
+    overscan: 20,
+    enabled: active,
+  });
+
+  const toggle = (node) => {
+    if (!node.children?.length) return;
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      if (next.has(node.path)) next.delete(node.path);
+      else next.add(node.path);
+      return next;
+    });
+  };
+
+  const focusRow = (index) => {
+    const row = rows[index];
+    if (!row) return;
+    setSelectedPath(row.node.path);
+    virtualizer.scrollToIndex(index, { align: 'auto' });
+    requestAnimationFrame(() => {
+      parentRef.current?.querySelector(`[data-row-index="${index}"]`)?.focus();
+    });
+  };
+
+  const handleKeyDown = (event, row, index) => {
+    const { node, parentPath } = row;
+    if (event.target !== event.currentTarget) return;
+    switch (event.key) {
+      case 'ArrowDown': focusRow(index + 1); break;
+      case 'ArrowUp': focusRow(index - 1); break;
+      case 'Home': focusRow(0); break;
+      case 'End': focusRow(rows.length - 1); break;
+      case 'ArrowRight':
+        if (!expanded.has(node.path)) toggle(node);
+        else if (node.children?.length) focusRow(index + 1);
+        break;
+      case 'ArrowLeft':
+        if (expanded.has(node.path)) toggle(node);
+        else if (parentPath) focusRow(rows.findIndex((entry) => entry.node.path === parentPath));
+        break;
+      case 'Enter':
+      case ' ':
+        if (node.children) toggle(node);
+        else if (event.key === 'Enter') window.api.openFile(node.path);
+        break;
+      default: return;
+    }
+    event.preventDefault();
+  };
+
+  const selectedVisible = rows.some((row) => row.node.path === selectedPath);
+
+  return (
+    <div
+      ref={parentRef}
+      className="disk-usage-list"
+      role="treegrid"
+      aria-label="Disk usage"
+      aria-rowcount={rows.length + 1}
+      aria-colcount={4}
+    >
+      <div className="disk-usage-list-header disk-usage-list-grid" role="row" aria-rowindex={1}>
+        {[
+          { field: 'name', label: 'File / Folder' },
+          { field: 'size', label: 'Size' },
+          { field: 'contents', label: 'Contents' },
+          { field: 'ratio', label: 'Ratio' },
+        ].map(({ field, label }) => (
+          <div key={field} role="columnheader" aria-sort={sort.field === field ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+            <UnstyledButton
+              className="disk-usage-list-sort"
+              title={field === 'ratio' ? 'Average file size (total size / total files)' : `Sort by ${label.toLowerCase()}`}
+              onClick={() => setSort((previous) => ({
+                field,
+                direction: previous.field === field ? (previous.direction === 'asc' ? 'desc' : 'asc') : (field === 'name' ? 'asc' : 'desc'),
+              }))}
+            >
+              {label}
+              {sort.field === field && (sort.direction === 'asc' ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />)}
+            </UnstyledButton>
+          </div>
+        ))}
+      </div>
+      <div role="rowgroup" style={{ height: virtualizer.getTotalSize(), position: 'relative', minWidth: 640 }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const row = rows[virtualRow.index];
+          const { node, depth } = row;
+          const isDirectory = Boolean(node.children);
+          const isExpanded = expanded.has(node.path);
+          const percentage = tree.size > 0 ? node.size / tree.size * 100 : 0;
+          const contents = isDirectory ? node.itemCount : 1;
+          return (
+            <div
+              key={node.path}
+              role="row"
+              aria-level={depth + 1}
+              aria-rowindex={virtualRow.index + 2}
+              aria-expanded={isDirectory ? isExpanded : undefined}
+              aria-selected={selectedPath === node.path}
+              tabIndex={selectedPath === node.path || (!selectedVisible && virtualRow.index === 0) ? 0 : -1}
+              data-row-index={virtualRow.index}
+              className={`data-row disk-usage-list-grid disk-usage-list-row${selectedPath === node.path ? ' data-row-selected' : ''}`}
+              onClick={(event) => { setSelectedPath(node.path); event.currentTarget.focus(); }}
+              onFocus={() => setSelectedPath(node.path)}
+              onKeyDown={(event) => handleKeyDown(event, row, virtualRow.index)}
+              onDoubleClick={() => isDirectory ? onNavigate(node) : window.api.openFile(node.path)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setSelectedPath(node.path);
+                setContextMenu({ x: event.clientX, y: event.clientY, node });
+              }}
+              style={{ height: virtualRow.size, transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <div role="gridcell" className="disk-usage-list-name" style={{ paddingLeft: 8 + depth * 20 }}>
+                {isDirectory && node.children.length > 0 ? (
+                  <Tooltip label={isExpanded ? 'Collapse folder' : 'Expand folder'} openDelay={300} withArrow>
+                    <ActionIcon
+                      variant="subtle"
+                      color="gray"
+                      size={22}
+                      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name}`}
+                      aria-expanded={isExpanded}
+                      tabIndex={-1}
+                      onClick={(event) => { event.stopPropagation(); setSelectedPath(node.path); toggle(node); }}
+                      onDoubleClick={(event) => event.stopPropagation()}
+                    >
+                      {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
+                    </ActionIcon>
+                  </Tooltip>
+                ) : <span style={{ width: 22, flexShrink: 0 }} />}
+                <span className="disk-usage-list-share" title={`${percentage.toFixed(2)}% of ${tree.name}`}>
+                  <span style={{ width: `${percentage}%` }} />
+                  <span>{percentage.toFixed(2)}%</span>
+                </span>
+                {isDirectory ? <IconFolder size={16} /> : <IconFile size={16} />}
+                <span className="disk-usage-list-filename" title={node.path}>{node.name}</span>
+              </div>
+              <div role="gridcell" className="disk-usage-list-number">{formatSize(node.size)}</div>
+              <div role="gridcell" className="disk-usage-list-number">{contents.toLocaleString()} {contents === 1 ? 'item' : 'items'}</div>
+              <div role="gridcell" className="disk-usage-list-number" title="Average file size">
+                {formatSize(node.fileCount > 0 ? node.size / node.fileCount : 0)}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {active && contextMenu && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(event) => { event.preventDefault(); setContextMenu(null); }}
+          />
+          <Paper
+            ref={contextMenuRef}
+            role="menu"
+            aria-label={`Actions for ${contextMenu.node.name}`}
+            shadow="lg"
+            p={4}
+            style={{
+              position: 'fixed',
+              left: contextMenu.x,
+              top: contextMenu.y,
+              zIndex: 1000,
+              minWidth: 180,
+              background: 'var(--mantine-color-dark-7)',
+              border: '1px solid var(--mantine-color-dark-4)',
+            }}
+          >
+            <UnstyledButton
+              role="menuitem"
+              className="disk-usage-context-item"
+              onClick={() => { window.api.showItemInFolder(contextMenu.node.path); setContextMenu(null); }}
+            >
+              <IconFolder size={14} /> Open File Location
+            </UnstyledButton>
+            {!contextMenu.node.children && (
+              <UnstyledButton
+                role="menuitem"
+                className="disk-usage-context-item"
+                onClick={() => { window.api.openFile(contextMenu.node.path); setContextMenu(null); }}
+              >
+                <IconExternalLink size={14} /> Open with Default App
+              </UnstyledButton>
+            )}
+            {contextMenu.node.path !== tree.path && (
+              <UnstyledButton
+                role="menuitem"
+                className="disk-usage-context-item"
+                onClick={async () => {
+                  const deletedPath = contextMenu.node.path;
+                  setContextMenu(null);
+                  try {
+                    await window.api.trashFile(deletedPath);
+                    onDelete?.(deletedPath);
+                  } catch (err) {
+                    console.error("Failed to delete item:", err);
+                  }
+                }}
+              >
+                <IconTrash size={14} /> Delete
+              </UnstyledButton>
+            )}
+          </Paper>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 export default function TreeMap({ toolbarTarget }) {
   const [directory, setDirectory] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -834,15 +1129,13 @@ export default function TreeMap({ toolbarTarget }) {
       if (prev.length === 0) return prev;
       const current = prev[prev.length - 1];
       if (!current?.children) return prev;
-      const child = current.children.find(c => c.path === deletedPath);
-      if (!child) return prev;
-      const removedSize = child.size;
+      const updated = removeDiskUsageNode(current, deletedPath);
+      if (updated === current) return prev;
+      const removedSize = current.size - updated.size;
+      const removedFileCount = current.fileCount - updated.fileCount;
+      const removedItemCount = current.itemCount - updated.itemCount;
       const next = [...prev];
-      next[next.length - 1] = {
-        ...current,
-        size: current.size - removedSize,
-        children: current.children.filter(c => c.path !== deletedPath),
-      };
+      next[next.length - 1] = updated;
       for (let i = next.length - 2; i >= 0; i--) {
         const node = prev[i];
         const oldChild = prev[i + 1];
@@ -850,6 +1143,8 @@ export default function TreeMap({ toolbarTarget }) {
         next[i] = {
           ...node,
           size: node.size - removedSize,
+          fileCount: node.fileCount - removedFileCount,
+          itemCount: node.itemCount - removedItemCount,
           children: node.children.map(c => c === oldChild ? newChild : c),
         };
       }
@@ -918,8 +1213,9 @@ export default function TreeMap({ toolbarTarget }) {
           size="md"
           style={{ flexShrink: 0 }}
           data={[
-            { label: <Tooltip openDelay={300} label="Treemap" withArrow><Group gap={0}><IconChartTreemap size={18} stroke={1.5} /></Group></Tooltip>, value: 'treemap' },
-            { label: <Tooltip openDelay={300} label="Sunburst" withArrow><Group gap={0}><IconChartDonut3 size={18} stroke={1.5} /></Group></Tooltip>, value: 'sunburst' },
+            { label: <Tooltip openDelay={300} label="Treemap" withArrow><Group gap={0} aria-label="Treemap"><IconChartTreemap size={18} stroke={1.5} /></Group></Tooltip>, value: 'treemap' },
+            { label: <Tooltip openDelay={300} label="Sunburst" withArrow><Group gap={0} aria-label="Sunburst"><IconChartDonut3 size={18} stroke={1.5} /></Group></Tooltip>, value: 'sunburst' },
+            { label: <Tooltip openDelay={300} label="List" withArrow><Group gap={0} aria-label="List"><IconListTree size={18} stroke={1.5} /></Group></Tooltip>, value: 'list' },
           ]}
         />
       )}
@@ -964,11 +1260,12 @@ export default function TreeMap({ toolbarTarget }) {
       )}
 
       {!scanning && tree && currentNode && (
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden' }}>
           <div style={{
             position: 'absolute',
             inset: 0,
             opacity: chartType === 'treemap' ? 1 : 0,
+            visibility: chartType === 'treemap' ? 'visible' : 'hidden',
             transition: 'opacity 0.25s ease',
             pointerEvents: chartType === 'treemap' ? 'auto' : 'none',
             display: 'flex',
@@ -980,12 +1277,25 @@ export default function TreeMap({ toolbarTarget }) {
             position: 'absolute',
             inset: 0,
             opacity: chartType === 'sunburst' ? 1 : 0,
+            visibility: chartType === 'sunburst' ? 'visible' : 'hidden',
             transition: 'opacity 0.25s ease',
             pointerEvents: chartType === 'sunburst' ? 'auto' : 'none',
             display: 'flex',
             flexDirection: 'column',
           }}>
             <SunburstView tree={currentNode} onNavigate={handleNavigate} onDelete={handleDelete} />
+          </div>
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: chartType === 'list' ? 1 : 0,
+            visibility: chartType === 'list' ? 'visible' : 'hidden',
+            transition: 'opacity 0.25s ease',
+            pointerEvents: chartType === 'list' ? 'auto' : 'none',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <DiskUsageList key={currentNode.path} tree={currentNode} active={chartType === 'list'} onNavigate={handleNavigate} onDelete={handleDelete} />
           </div>
         </div>
       )}
