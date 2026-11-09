@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   startScan: (directories, options) => ipcRenderer.send('start-scan', directories, options),
   cancelScan: () => ipcRenderer.send('cancel-scan'),
   showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
-  openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
+  openFile: (filePath) => ipcRenderer.send('open-file', filePath),
   trashFile: (filePath) => ipcRenderer.invoke('trash-file', filePath),
   clearCache: () => ipcRenderer.invoke('clear-cache'),
   getSettings: () => ipcRenderer.invoke('get-settings'),

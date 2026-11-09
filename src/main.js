@@ -126,8 +126,13 @@ ipcMain.handle('show-item-in-folder', (_event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
-ipcMain.handle('open-file', (_event, filePath) => {
-  return shell.openPath(filePath);
+ipcMain.on('open-file', async (_event, filePath) => {
+  try {
+    const error = await shell.openPath(filePath);
+    if (error) throw new Error(error);
+  } catch (err) {
+    dialog.showMessageBox(mainWindow, { type: 'error', message: 'Unable to open file', detail: err.message });
+  }
 });
 
 ipcMain.handle('trash-file', async (_event, filePath) => {
