@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import PreviewPanel from './PreviewPanel';
 import {
   Stack,
   Text,
@@ -813,10 +814,14 @@ function removeDiskUsageNode(node, deletedPath) {
 function DiskUsageList({ tree, active, onNavigate, onDelete }) {
   const [expanded, setExpanded] = useState(() => new Set([tree.path]));
   const [selectedPath, setSelectedPath] = useState(tree.path);
+  const [previewPath, setPreviewPath] = useState(null);
+  const [previewWidth, setPreviewWidth] = useState(350);
   const [sort, setSort] = useState({ field: 'size', direction: 'desc' });
   const [contextMenu, setContextMenu] = useState(null);
   const contextMenuRef = useRef(null);
   const parentRef = useRef(null);
+  const containerRef = useRef(null);
+  const resizeRef = useRef(null);
 
   useLayoutEffect(() => {
     if (!contextMenu || !contextMenuRef.current) return;
@@ -882,6 +887,16 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
     });
   };
 
+  const selectNode = (node) => {
+    setSelectedPath(node.path);
+    setPreviewPath(node.children ? null : node.path);
+  };
+
+  const resizePreview = (width) => {
+    const maximum = Math.max(180, (containerRef.current?.clientWidth || 900) * 0.6);
+    setPreviewWidth(Math.max(180, Math.min(maximum, width)));
+  };
+
   const focusRow = (index) => {
     const row = rows[index];
     if (!row) return;
@@ -921,9 +936,11 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
   const selectedVisible = rows.some((row) => row.node.path === selectedPath);
 
   return (
+    <div ref={containerRef} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
     <div
       ref={parentRef}
       className="disk-usage-list"
+      style={{ minWidth: 0 }}
       role="treegrid"
       aria-label="Disk usage"
       aria-rowcount={rows.length + 1}
@@ -970,8 +987,8 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
               tabIndex={selectedPath === node.path || (!selectedVisible && virtualRow.index === 0) ? 0 : -1}
               data-row-index={virtualRow.index}
               className={`data-row disk-usage-list-grid disk-usage-list-row${selectedPath === node.path ? ' data-row-selected' : ''}`}
-              onClick={(event) => { setSelectedPath(node.path); event.currentTarget.focus(); }}
-              onFocus={() => setSelectedPath(node.path)}
+              onClick={(event) => { selectNode(node); event.currentTarget.focus(); }}
+              onFocus={() => selectNode(node)}
               onKeyDown={(event) => handleKeyDown(event, row, virtualRow.index)}
               onDoubleClick={() => isDirectory ? onNavigate(node) : window.api.openFile(node.path)}
               onContextMenu={(event) => {
@@ -991,7 +1008,7 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
                       aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.name}`}
                       aria-expanded={isExpanded}
                       tabIndex={-1}
-                      onClick={(event) => { event.stopPropagation(); setSelectedPath(node.path); toggle(node); }}
+                      onClick={(event) => { event.stopPropagation(); selectNode(node); toggle(node); }}
                       onDoubleClick={(event) => event.stopPropagation()}
                     >
                       {isExpanded ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}
@@ -1062,6 +1079,9 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
                   setContextMenu(null);
                   try {
                     await window.api.trashFile(deletedPath);
+                    if (previewPath === deletedPath || previewPath?.startsWith(`${deletedPath}/`) || previewPath?.startsWith(`${deletedPath}\\`)) {
+                      setPreviewPath(null);
+                    }
                     onDelete?.(deletedPath);
                   } catch (err) {
                     console.error("Failed to delete item:", err);
@@ -1076,10 +1096,43 @@ function DiskUsageList({ tree, active, onNavigate, onDelete }) {
         document.body
       )}
     </div>
+    {active && previewPath && (
+      <div style={{ width: previewWidth, maxWidth: '60%', minWidth: 0, flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+        <div
+          role="separator"
+          aria-label="Resize preview"
+          aria-orientation="vertical"
+          aria-valuenow={Math.round(Math.min(60, previewWidth / (containerRef.current?.clientWidth || 900) * 100))}
+          aria-valuemin={0}
+          aria-valuemax={60}
+          tabIndex={0}
+          title="Resize preview"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            resizeRef.current = { startX: event.clientX, startWidth: event.currentTarget.parentElement.clientWidth };
+          }}
+          onPointerMove={(event) => {
+            if (!resizeRef.current) return;
+            resizePreview(resizeRef.current.startWidth + resizeRef.current.startX - event.clientX);
+          }}
+          onLostPointerCapture={() => { resizeRef.current = null; }}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            resizePreview(event.currentTarget.parentElement.clientWidth + (event.key === 'ArrowLeft' ? 20 : -20));
+          }}
+          style={{ position: 'absolute', top: 0, left: 0, width: 5, height: '100%', cursor: 'col-resize', touchAction: 'none', zIndex: 10 }}
+        />
+        <PreviewPanel filePath={previewPath} onClose={() => setPreviewPath(null)} isOpen width="100%" />
+      </div>
+    )}
+    </div>
   );
 }
 
-export default function TreeMap({ toolbarTarget }) {
+export default function TreeMap({ toolbarTarget, active = true }) {
   const [directory, setDirectory] = useState(null);
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState({});
@@ -1295,7 +1348,7 @@ export default function TreeMap({ toolbarTarget }) {
             display: 'flex',
             flexDirection: 'column',
           }}>
-            <DiskUsageList key={currentNode.path} tree={currentNode} active={chartType === 'list'} onNavigate={handleNavigate} onDelete={handleDelete} />
+            <DiskUsageList key={currentNode.path} tree={currentNode} active={active && chartType === 'list'} onNavigate={handleNavigate} onDelete={handleDelete} />
           </div>
         </div>
       )}

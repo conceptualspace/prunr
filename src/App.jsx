@@ -37,7 +37,6 @@ import {
   IconSelector,
   IconSettings,
   IconX,
-  IconEye,
   IconFilter,
   IconExternalLink,
   IconWand,
@@ -58,6 +57,7 @@ import {
 import '@mantine/core/styles.css';
 import SettingsModal from './SettingsModal';
 import TreeMap from './TreeMap';
+import PreviewPanel from './PreviewPanel';
 import { DEFAULT_SETTINGS } from './defaults';
 
 const brownPalette = [
@@ -151,93 +151,6 @@ function SortHeader({ label, field, sortBy, sortDir, onSort }) {
       <Text fw={600} size="sm">{label}</Text>
       <Icon size={14} stroke={1.5} />
     </UnstyledButton>
-  );
-}
-
-function PreviewPanel({ filePath, onClose, isOpen, width }) {
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setPreview(null);
-    window.api.readFilePreview(filePath).then((result) => {
-      if (!cancelled) {
-        setPreview(result);
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setPreview({ type: 'error' });
-        setLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [filePath]);
-
-  const fileName = filePath.split('/').pop() || filePath.split('\\').pop();
-
-  return (
-    <Paper
-      style={{
-        width: width,
-        height: '100%',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        borderLeft: '1px solid var(--mantine-color-dark-4)',
-        overflow: 'hidden',
-        opacity: isOpen ? 1 : 0,
-        transition: 'opacity 0.2s ease',
-      }}
-    >
-      <Group p="xs" justify="space-between" style={{ flexShrink: 0, borderBottom: '1px solid var(--mantine-color-dark-4)' }}>
-        <Group gap="xs">
-          <IconEye size={16} />
-          <Text size="sm" fw={600} truncate="end" style={{ maxWidth: 260 }} title={fileName}>
-            {fileName}
-          </Text>
-        </Group>
-        <ActionIcon size="sm" variant="subtle" color="gray" onClick={onClose}>
-          <IconX size={14} />
-        </ActionIcon>
-      </Group>
-      <div style={{ flex: 1, overflow: 'auto', padding: 12 }}>
-        {loading && <Text c="dimmed" size="sm">Loading preview…</Text>}
-        {!loading && preview?.type === 'image' && (
-          <img
-            src={preview.dataUrl}
-            alt={fileName}
-            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 4 }}
-          />
-        )}
-        {!loading && preview?.type === 'text' && (
-          <pre style={{
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'monospace',
-            fontSize: '0.8rem',
-            color: 'var(--mantine-color-gray-4)',
-          }}>
-            {preview.content}
-            {preview.truncated && <Text c="dimmed" size="xs" mt="xs">(truncated)</Text>}
-          </pre>
-        )}
-        {!loading && preview?.type === 'video' && (
-          <video controls src={preview.dataUrl} style={{ maxWidth: '100%', borderRadius: 4 }} />
-        )}
-        {!loading && preview?.type === 'audio' && (
-          <audio controls src={preview.dataUrl} style={{ width: '100%' }} />
-        )}
-        {!loading && (preview?.type === 'unsupported' || preview?.type === 'error') && (
-          <Stack align="center" justify="center" style={{ height: '100%' }}>
-            <Text c="dimmed" size="sm">Preview not available for this file type.</Text>
-          </Stack>
-        )}
-      </div>
-    </Paper>
   );
 }
 
@@ -1183,7 +1096,7 @@ export default function App() {
               transition: 'transform 0.35s ease, opacity 0.35s ease',
               pointerEvents: view === 'treemap' ? 'auto' : 'none',
             }}>
-              <TreeMap toolbarTarget={treemapToolbarEl} />
+              <TreeMap toolbarTarget={treemapToolbarEl} active={view === 'treemap'} />
             </div>
 
             {/* Duplicates view - enters from right */}
